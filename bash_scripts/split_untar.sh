@@ -1,9 +1,12 @@
 #!/bin/bash
 
 # Usage: ./split_untar.sh outputname.tar
+# Extract tar archives created with split_tar.sh
 
-CHECKSUM_CMD=shasum
+CHECKSUM_CMD=shasum # Might have to be adjusted, usually OSX: shasum, Linux: sha1sum
 CHECKSUM_EXT=sha1
+
+COMPRESSION="" # If archive is compressed use z (gzip), j (bzip), etc.
 
 ARCHIVE_NAME="$1"
 PART_PREFIX="${ARCHIVE_NAME}.part"
@@ -34,7 +37,7 @@ cat ${PART_PREFIX}-* > "$ARCHIVE_NAME"
 
 # Step 3: Extract
 echo "[+] Extracting archive..."
-tar -xf "$ARCHIVE_NAME"
+tar -x${COMPRESSION}f "$ARCHIVE_NAME"
 
 echo "[✓] Extraction complete."
 

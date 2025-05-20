@@ -1,9 +1,13 @@
 #!/bin/bash
 
 # Usage: ./split_tar.sh /path/to/source outputname.tar [CHUNK_SIZE]
+# Generate tar archive of directory, split into multiple files with
+# specified chunk size
 
-CHECKSUM_CMD=shasum
+CHECKSUM_CMD=shasum  # Might have to be adjusted, usually OSX: shasum, Linux: sha1sum
 CHECKSUM_EXT=sha1
+
+COMPRESSION="" # If you want to compress archive use z (gzip), j (bzip), etc.
 
 SOURCE_DIR="$1"
 ARCHIVE_NAME="$2"
@@ -23,7 +27,7 @@ fi
 
 # Step 1: Create and split tar archive
 echo "[+] Creating multi-part archive from '$SOURCE_DIR' into '$ARCHIVE_NAME' with chunk size '$CHUNK_SIZE'..."
-tar -cf - "$SOURCE_DIR" | split -b "$CHUNK_SIZE" -d - "$PART_PREFIX-"
+tar -c${COMPRESSION}f - "$SOURCE_DIR" | split -b "$CHUNK_SIZE" -d - "$PART_PREFIX-"
 
 # Step 2: Generate checksums
 echo "[+] Generating checksums..."
