@@ -5,7 +5,18 @@
 # specified chunk size (default: 10G)
 
 COMPRESSION="" # If you want to compress archive use z (gzip), j (bzip), etc.
-CHECKSUM_CMD=shasum  # Might have to be adjusted, usually OSX: shasum, Linux: sha1sum
+
+#########
+
+# Detect available checksum command
+if command -v shasum >/dev/null 2>&1; then
+    CHECKSUM_CMD=shasum
+elif command -v sha1sum >/dev/null 2>&1; then
+    CHECKSUM_CMD=sha1sum
+else
+    echo "[✗] Error: shasum or sha1sum required"
+    exit 1
+fi
 CHECKSUM_EXT=sha1
 
 SOURCE_DIR="${1%/}"

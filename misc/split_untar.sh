@@ -3,7 +3,15 @@
 # Usage: ./split_untar.sh outputname.tar.part-00
 # Extract tar archives created with split_tar.sh
 
-CHECKSUM_CMD=shasum # Might have to be adjusted, usually OSX: shasum, Linux: sha1sum
+# Detect available checksum command
+if command -v shasum >/dev/null 2>&1; then
+    CHECKSUM_CMD=shasum
+elif command -v sha1sum >/dev/null 2>&1; then
+    CHECKSUM_CMD=sha1sum
+else
+    echo "[✗] Error: shasum or sha1sum required"
+    exit 1
+fi
 CHECKSUM_EXT=sha1
 
 ARCHIVE_NAME="${1%%.part-*}"
