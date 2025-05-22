@@ -1,14 +1,25 @@
 #!/bin/bash
 
-# Usage: ./split_untar.sh outputname.tar
+# Usage: ./split_untar.sh outputname.tar.part-00
 # Extract tar archives created with split_tar.sh
 
 CHECKSUM_CMD=shasum # Might have to be adjusted, usually OSX: shasum, Linux: sha1sum
 CHECKSUM_EXT=sha1
 
-COMPRESSION="" # If archive is compressed use z (gzip), j (bzip), etc.
+ARCHIVE_NAME="${1%%.part-*}"
 
-ARCHIVE_NAME="$1"
+if [[ "$ARCHIVE_NAME" == *.tar.gz ]]; then
+    COMPRESSION="z"
+elif [[ "$ARCHIVE_NAME" == *.tar.bz2 ]]; then
+    COMPRESSION="j"
+elif [[ "$ARCHIVE_NAME" == *.tar.xz ]]; then
+    COMPRESSION="J"
+elif [[ "$ARCHIVE_NAME" == *.tar.lzma ]]; then
+    COMPRESSION="lzma"
+else
+    COMPRESSION=""
+fi
+
 PART_PREFIX="${ARCHIVE_NAME}.part"
 CHECKSUM_FILE="${ARCHIVE_NAME}.$CHECKSUM_EXT"
 
@@ -37,7 +48,11 @@ cat ${PART_PREFIX}-* > "$ARCHIVE_NAME"
 
 # Step 3: Extract
 echo "[+] Extracting archive..."
-tar -x${COMPRESSION}f "$ARCHIVE_NAME"
+if [ "$COMPRESSION" = "lzma" ]; then
+    tar --lzma -xf "$ARCHIVE_NAME"
+else
+    tar -x${COMPRESSION}f "$ARCHIVE_NAME"
+fi
 
 echo "[✓] Extraction complete."
 
