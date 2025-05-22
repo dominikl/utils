@@ -16,8 +16,16 @@ if [ ! -f "/tmp/reader.txt" ]; then
     echo "loci.formats.in.OMEXMLReader" > /tmp/reader.txt
 fi
 
+# Extract image name from arguments
+for arg in "$@"; do
+    if [[ "$arg" == *".ome.zarr"* ]]; then
+        IMAGE_NAME="$(basename "${arg%/OME*}")"
+        break
+    fi
+done
+
 # Run import and process each imported image
-omero import -l /tmp/reader.txt $@ | grep "Image:[0-9]\+" | while read -r image; do
+omero import -l /tmp/reader.txt -n "${IMAGE_NAME}" $@ | grep "Image:[0-9]\+" | while read -r image; do
     omero zarr extinfo --set "$image"
     omero render test --thumb "$image"
 done
