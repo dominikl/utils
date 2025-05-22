@@ -25,7 +25,7 @@ for arg in "$@"; do
 done
 
 # Run import and process each imported image
-omero import -l /tmp/reader.txt -n "${IMAGE_NAME}" $@ | grep "Image:[0-9]\+" | while read -r image; do
+omero import -l /tmp/reader.txt -n "${IMAGE_NAME}" $@ | grep "Image:[0-9]\+" -e "Plate:[0-9]\+" | while read -r image; do
     omero zarr extinfo --set "$image"
     omero render test --thumb "$image"
 done
