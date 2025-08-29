@@ -25,9 +25,10 @@ import uuid
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Generate companion ome.xml files",
+        description="Generates a companion ome.xml file for an HCS plate",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
+
 
     parser.add_argument(
         "name",
@@ -41,7 +42,6 @@ def main():
         help="Sample tif file"
     )
     
-    # Required arguments
     parser.add_argument(
         "input_file",
         type=Path,
@@ -51,7 +51,7 @@ def main():
     parser.add_argument(
         "regex",
         type=Path,
-        help="File with regex for parsing the file names; has to contain named groups 'row', 'col', 'field', 'channel_index', 'channel_name', 'z', 't',\
+        help="File with regex for parsing the file names; has to contain named groups 'row', 'col'; can contain 'field', 'channel_index', 'channel_name', 'z', 't',\
         e.g. for matching file names like B12_2-z1-t2-ch1-DAPI.tiff use:\
         (?P<row>[a-zA-Z]+)(?P<col>\\d+)_(?P<field>\\d+)-z(?P<z>\\d+)-t(?P<t>\\d+)-ch(?P<channel_index>\\d+)-(?P<channel_name>.+)\\."
     )
@@ -74,12 +74,6 @@ def main():
         type=str,
         default="XYCZT",
         help="Order"
-    )
-
-    parser.add_argument(
-        "--row-num",
-        action="store_true",
-        help="Flag if rows are numbers (0, 1, ... instead of A, B, ...)"
     )
 
     parser.add_argument(
@@ -199,15 +193,39 @@ class Specs:
     rows = set()
 
 
-def run(args):
+def run(args: argparse.Namespace) -> None:
+    """
+    Main execution function that orchestrates the companion OME-XML generation process.
+    
+    Args:
+        args: Parsed command-line arguments containing:
+            - name: Name of the plate
+            - sample: Path to sample TIFF file for metadata extraction
+            - input_file: Path to file containing list of image filenames
+            - regex: Path to file containing regex pattern for filename parsing
+            - Various indexing flags (row_zero, col_zero, etc.)
+            - verbose: Enable detailed output
+            - quiet: Skip manual confirmation
+            - timepoints: Treat multiple images as timepoints vs z-planes
+            - order: Dimension order string (default "XYCZT")
+    
+    Returns:
+        None: Function exits early if user doesn't confirm or on validation errors
+        
+    Raises:
+        SystemExit: On validation errors or regex pattern failures
+        FileNotFoundError: If regex file doesn't exist
+        IOError: If there are file reading errors
+    """
     # Load regex from file
     with open(args.regex, 'r') as f:
         regex = f.read().strip()
     
+    # Test regex on sample image name
     match = re.match(regex, args.sample.name)
     if match:
         if args.verbose:
-            print("Regex matches:")
+            print(f"Regex matches sample image name {args.sample.name}:")
             for k, v in match.groupdict().items():
                 print(f"  {k}: {v}")
     else:
@@ -216,7 +234,7 @@ def run(args):
 
 
     specs = Specs()
-    specs.order = args.order
+    specs.order = args.order # Todo: Is there a way to get this info from tifffile!?
 
     # Get image specs from sample
     specs.x, specs.y, specs.spp, specs.dtype, n = check_sample(args)
@@ -296,13 +314,13 @@ def run(args):
         wells[wells_key].well_samples[field] = WellSample(index=field, image_ref=ImageRef(id=img.id))
         ome.images.append(img)
 
-    out_file = f"{args.name}.ome.xml"
+    out_file = f"{args.name}.companion.ome"
     with open(out_file, 'w') as f:
         f.write(ome.to_xml())
     print(f"Wrote OME-XML to {out_file}")
 
 
-def check_sample(args):
+def check_sample(args: argparse.Namespace) -> Tuple[int, int, int, str, int]:
     """
     Extract image dimensions and metadata from a sample TIFF file.
     
@@ -343,9 +361,9 @@ def check_filenames(args: argparse.Namespace, regex: str) -> Tuple[int, Set[str]
     
     Analyzes a list of image filenames to extract plate layout information
     and image metadata. Uses a regex pattern to parse filenames and extract:
-    - Row and column positions (essential for plate layout)
-    - Field positions (optional, for multi-field imaging)
-    - Z-plane, timepoint, and channel information (optional)
+    - Row and column positions
+    - Field positions
+    - Z-plane, timepoint
     - Channel names and indices
     
     Handles both zero-based and one-based indexing based on command-line
@@ -363,7 +381,7 @@ def check_filenames(args: argparse.Namespace, regex: str) -> Tuple[int, Set[str]
             - n_z (int): Maximum number of z-planes
             - n_t (int): Maximum number of timepoints
             - channels (Dict[int, str]): Channel index to name mapping
-            - images (Dict[str, list[str]]): Key to filename list mapping
+            - images (Dict[str, list[str]]): Filename list mapping (Key 'row|col|field')
     """
     n_col: int = 0
     rows: Set[str] = set()
@@ -377,7 +395,6 @@ def check_filenames(args: argparse.Namespace, regex: str) -> Tuple[int, Set[str]
     for line in parse(args.input_file):
         match = re.match(regex, line)
         if match:
-            # essential
             col = int(safe_extract(match, 'col'))
             if col is None:
                 print(f"Warn: Skippking, no column info in line: {line}", file=sys.stderr)
@@ -386,20 +403,21 @@ def check_filenames(args: argparse.Namespace, regex: str) -> Tuple[int, Set[str]
                 col = col - 1
             n_col = max(col+1, n_col)
 
-            # essential
             row = safe_extract(match, 'row')
             if row is None:
                 print(f"Warn: Skippking, no row info in line: {line}", file=sys.stderr)
                 continue
-            if not args.row_num:
-                row = string.ascii_lowercase.index(row.lower())
-            else:
+            try:
                 row = int(row)
                 if not args.row_zero:
                     row = row - 1
+            except ValueError:
+                if len(row) > 1:
+                    print(f"Warn: Row '{row}' doesn't look like a row ID, skipping line: {line}", file=sys.stderr)
+                    continue
+                row = string.ascii_lowercase.index(row.lower())
             rows.add(safe_extract(match, 'row'))
 
-            # optional
             if safe_extract(match, 'field'):
                 field = int(safe_extract(match, 'field'))
                 if not args.field_zero:
@@ -413,21 +431,18 @@ def check_filenames(args: argparse.Namespace, regex: str) -> Tuple[int, Set[str]
                 images[key] = []
             images[key].append(line)
 
-            # optional
             if safe_extract(match, 'z'):
                 z = int(safe_extract(match, 'z'))
                 if not args.z_zero:
                     z = z - 1
                 n_z = max(z+1, n_z)
             
-            # optional
             if safe_extract(match, 't'):
                 t = int(safe_extract(match, 't'))
                 if not args.t_zero:
                     t = t - 1
                 n_t = max(t+1, n_t)
-
-            # optional  
+ 
             if safe_extract(match, 'channel_index'):
                 c = int(safe_extract(match, 'channel_index'))
                 if not args.c_zero:
@@ -446,11 +461,39 @@ def check_filenames(args: argparse.Namespace, regex: str) -> Tuple[int, Set[str]
         else:
             print(f"Warn: Skippking, no match in line: {line}", file=sys.stderr)
             
-
     return n_col, rows, n_field, n_z, n_t, channels, images
 
 
-def gen_image(args, specs, regex, images, name):
+def gen_image(args: argparse.Namespace, specs: Specs, regex: str, images: list[str], name: str) -> Image:
+    """
+    Generate an OME Image object with associated TIFF data blocks for a specific well/field.
+    
+    This function creates a complete OME Image structure including:
+    - Pixels metadata (dimensions, data type, dimension order)
+    - Plane definitions for all C/Z/T combinations
+    - Channel definitions with optional names
+    - TIFF data blocks linking to actual image files
+    
+    The function handles both single-channel and multi-channel images, and supports
+    various indexing schemes (zero-based vs one-based) based on command-line arguments.
+    
+    Args:
+        args: Parsed command-line arguments containing indexing flags (z_zero, t_zero, c_zero)
+        specs: Specifications object containing image dimensions and metadata:
+            - x, y: Image dimensions in pixels
+            - z, t, c: Number of z-planes, timepoints, and channels
+            - spp: Samples per pixel
+            - dtype: Pixel data type
+            - order: Dimension order string
+            - channels: Dictionary mapping channel indices to names
+            - planes_per_tiff: Number of planes per TIFF file
+        regex: Regular expression pattern for parsing filenames
+        images: List of image filenames for this well/field
+        name: Name identifier for the image (typically "row|col|field")
+        
+    Returns:
+        Image: Complete OME Image object with pixels, planes, channels, and TIFF data blocks
+    """
     if specs.spp > 1:
         pixels_c = specs.spp
     else:
@@ -464,14 +507,14 @@ def gen_image(args, specs, regex, images, name):
         size_t=specs.t,
         dimension_order=specs.order
     )
-    # for c in range(pixels_c):
-    #     for t in range(specs.t):
-    #         for z in range(specs.z):
-    #             pixels.planes.append(Plane(
-    #                 the_c=c,
-    #                 the_t=t,
-    #                 the_z=z
-    #             ))
+    for c in range(pixels_c):
+        for t in range(specs.t):
+            for z in range(specs.z):
+                pixels.planes.append(Plane(
+                    the_c=c,
+                    the_t=t,
+                    the_z=z
+                ))
     for _ in range(specs.c):
         pixels.channels.append(Channel(samples_per_pixel=specs.spp))
     if specs.channels:
@@ -519,22 +562,6 @@ def gen_image(args, specs, regex, images, name):
                 plane_count=specs.planes_per_tiff,
                 uuid=tiff_uuid)
             pixels.tiff_data_blocks.append(tiff)
-            for p_i in range(specs.planes_per_tiff):
-                for s_i in range(specs.spp):
-                    if specs.spp > 1:
-                        c_i = s_i
-                    else:
-                        c_i = c
-                    if specs.planes_per_tiff > 1:
-                        if args.timepoints:
-                            t = p_i
-                        else:
-                            z = p_i
-                    pixels.planes.append(Plane(
-                            the_c=c_i,
-                            the_t=t,
-                            the_z=z
-                ))
     return image
 
 
