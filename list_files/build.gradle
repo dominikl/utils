@@ -1,0 +1,53 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+version = '1.0.0'
+sourceCompatibility = '11'
+
+repositories {
+    mavenCentral()
+    maven {
+        url 'https://artifacts.openmicroscopy.org/artifactory/maven/'
+    }
+    maven {
+        name 'Unidata'
+        url 'https://artifacts.glencoesoftware.com/artifactory/unidata-releases'
+    }
+}
+
+dependencies {
+    implementation 'ome:bioformats_package:8.3.0'
+    implementation 'ch.qos.logback:logback-classic:1.4.14'
+}
+
+application {
+    mainClass = 'ShowFiles'
+}
+
+tasks.named('jar') {
+    manifest {
+        attributes(
+            'Implementation-Title': project.name,
+            'Implementation-Version': project.version,
+            'Main-Class': 'ShowFiles'
+        )
+    }
+}
+
+task fatJar(type: Jar) {
+    archiveClassifier = 'with-deps'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        attributes(
+            'Implementation-Title': project.name,
+            'Implementation-Version': project.version,
+            'Main-Class': 'ShowFiles'
+        )
+    }
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+    with jar
+}
