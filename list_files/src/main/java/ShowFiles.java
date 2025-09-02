@@ -5,6 +5,8 @@ import loci.formats.services.OMEXMLService;
 import loci.common.services.ServiceFactory;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 
 import loci.common.services.DependencyException;
 import loci.common.services.ServiceException;
@@ -72,12 +74,26 @@ public class ShowFiles {
 
             if (metadata.getPlateCount() > 0) {
                 // Show used files per image
+                Set<String> commonFiles = new HashSet<>();
+                Set<String> tmp = new HashSet<>();
+                reader.setSeries(0);
+                for (String file : reader.getSeriesUsedFiles(false)) {
+                    tmp.add(file);
+                }
+                reader.setSeries(1);
+                for (String file : reader.getSeriesUsedFiles(false)) {
+                    if (tmp.contains(file)) {
+                        commonFiles.add(file);
+                    }
+                }
+                System.out.println("Used Files:");
                 for (int series = 0; series < reader.getSeriesCount(); series++) {
                     reader.setSeries(series);
                     System.out.println("Name: " + metadata.getImageName(series));
-                    System.out.println("Files:");
                     for (String file : reader.getSeriesUsedFiles(false)) {
-                        System.out.println("  " + file);
+                        if (!commonFiles.contains(file)) {
+                            System.out.println("  " + file);
+                        }
                     }
                 }
             }
