@@ -15,6 +15,11 @@ from ome_zarr.io import parse_url
 from ome_zarr.writer import write_image
 from ome_zarr.format import FormatV04, FormatV05
 
+x = 512
+y = 256
+c = 3
+z = 4
+t = 5
 
 def get_format(args):
     if args.version == "0.4":
@@ -38,18 +43,18 @@ def create_zarr(args):
     root = zarr.group(store=store)
     # Create dummy data for the image
     data = np.fromfunction(
-        lambda t, c, z, y, x: x + 2 * y + 3 * c + 4 * z + 5 * t,
-        (args.t, args.c, args.z, args.y, args.x),
+        lambda t, c, z, y, x: x + 1 + 1000 * (y+1) +  1000000 * (c+1) + 10000000 * (z+1) + 100000000 * (t+1),
+        (t, c, z, y, x),
         dtype=np.uint32,
     ).astype(np.uint32)
-    chunks=(1, 1, 1, args.y, args.x)
+    chunks=(1, 1, 1, y, x)
     write_image(image=data, group=root, axes="tczyx",
                 storage_options=dict(chunks=chunks))
     print(f"Created zarr with at {args.dest}")
     print(f"Version: {args.version}")
     print(f"Shape (TCZYX): {data.shape}")
     print(f"Chunks: {chunks}")
-    print(f"Pixel values: x + 2 * y + 3 * c + 4 * z + 5 * t")
+    print(f"Pixel values: x + 1 + 1000 * (y+1) +  1000000 * (c+1) + 10000000 * (z+1) + 100000000 * (t+1)")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -64,13 +69,6 @@ def build_parser() -> argparse.ArgumentParser:
         type=str,
         help="Destination path for the generated zarr.",
     )
-
-    # Optional dimensions and metadata
-    parser.add_argument("-x", type=int, default=512, help="Size in X (default: 512)")
-    parser.add_argument("-y", type=int, default=256, help="Size in Y (default: 256)")
-    parser.add_argument("-c", type=int, default=3, help="Number of channels (default: 3)")
-    parser.add_argument("-z", type=int, default=4, help="Size in Z (slices) (default: 4)")
-    parser.add_argument("-t", type=int, default=5, help="Number of timepoints (default: 5)")
 
     parser.add_argument(
         "--cols",
