@@ -1,0 +1,14 @@
+---
+
+- src: ome.postgresql
+
+- src: ome.omero_server
+
+- src: ome.omero_web
+
+- src: ome.nginx
+
+- src: ome.ssl_certificate
+
+- src: ome.omero_user
+

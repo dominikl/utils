@@ -1,0 +1,125 @@
+---
+
+- name: OMERO all-in-one server playbook
+  hosts: omero_servers
+  pre_tasks:
+    - name: Check if server.key file exists
+      stat: 
+        path: "{{ icessl_default_dir_noself }}/server.key"
+      register: serverkey_file
+
+    - name: Set omero_certificates_key to server.key
+      set_fact:
+        omero_certificates_key_override: server.key
+      when: serverkey_file.stat.exists
+
+  roles:
+    - role: ome.postgresql
+      postgresql_databases:
+      - name: omero
+        owner: omero
+      postgresql_users:
+      - user: omero
+        password: omero
+        databases: []
+
+    - role: ome.omero_server
+      become: true
+      omero_server_dbuser: omero
+      omero_server_dbpassword: omero
+      omero_server_rootpassword: omero
+      omero_server_dbname: omero
+      omero_server_systemd_limit_nofile: 16384
+
+    - role: ome.nginx
+
+    - role: ome.omero_web
+      omero_web_systemd_limit_nofile: 16384
+      omero_web_python_addons:
+        - "omero-iviewer=={{ omero_iviewer_release }}"
+        - "omero-py>={{ omero_py_release }}"
+
+    - role: ome.omero_user
+      omero_user_system: omero-server
+      omero_user_admin_user: root
+      omero_user_admin_pass: omero
+
+    - role: ome.ssl_certificate
+      tags: ssl
+
+    - role: ome.omero_zarr_pixel_buffer
+
+
+  handlers:
+    - name: Reload web server
+      listen: ssl certificate changed
+      become: true
+      ansible.builtin.service:
+        name: nginx
+        state: reloaded
+
+
+  post_tasks:
+
+    - name: Allow nginx to connect to omero-web
+      become: true
+      ansible.builtin.command: setsebool -P httpd_can_network_connect on
+  
+
+  vars:
+    omero_server_selfsigned_certificates: true
+    icessl_default_dir_self: "{{ omero_server_basedir }}/selfsigned"
+    icessl_default_dir_noself: "/etc/ssl/omero"
+    icessl_default_dir: "{{ icessl_default_dir_self if omero_server_selfsigned_certificates else icessl_default_dir_noself }}"
+    omero_certificates_owner:
+    omero_certificates_key: >-
+      {{ omero_certificates_key_override | default('') }}
+    filesystem: "ext4"
+    nginx_version: 1.28.0
+    postgresql_version: "18"
+    java_versions: ["11"]
+    java_temurin: true
+
+    # OMERO versions
+    omero_server_release: 5.6.16
+    omero_iviewer_release: 0.16.0
+    omero_web_release: 5.29.3
+    omero_py_release: 5.21.3
+
+    # CLI versions
+    omero_cli_render_release: 0.8.1
+    omero_metadata_release: 0.13.0
+    omero_cli_zarr_release: 0.5.5
+
+    omero_server_config_set:
+      omero.client.icetransports: ssl,wss,tcp
+      omero.certificates.key: "{{ omero_certificates_key }}"
+      omero.db.poolsize: 60
+      omero.glacier2.IceSSL.Ciphers: "HIGH:!DHE"
+      omero.glacier2.IceSSL.CAs: server.pem
+      omero.glacier2.IceSSL.CertFile: server.p12
+      omero.glacier2.IceSSL.DefaultDir: "{{ icessl_default_dir }}"
+      # This password doesn't need to be secret
+      omero.glacier2.IceSSL.Password: secret
+      omero.glacier2.IceSSL.ProtocolVersionMax: TLS1_3
+      omero.glacier2.IceSSL.Protocols: TLS1_2,TLS1_3
+      omero.jvmcfg.percent.blitz: 50
+      omero.jvmcfg.percent.indexer: 20
+      omero.jvmcfg.percent.pixeldata: 20
+      omero.jvmcfg.system_memory: 3000
+      omero.search.batch: 100
+      omero.throttling.method_time.error: 60000
+
+    omero_server_python_addons:
+      - "omero-cli-render=={{ omero_cli_render_release }}"
+      - "omero-metadata=={{ omero_metadata_release }}"
+      - "omero-py=={{ omero_py_release }}"
+      - "omero-cli-zarr=={{omero_cli_zarr_release}}"
+
+    omero_web_config_set:
+      omero.mail.config: false
+      omero.web.server_list: [["localhost", 4064, "omero"]]
+      omero.web.wsgi_workers: >-
+        {{ (2 * (ansible_processor_count *
+        ansible_processor_cores)) + 1 }}
+      omero.web.viewer.view: omero_iviewer.views.index
