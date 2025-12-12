@@ -100,7 +100,6 @@
     # CLI versions
     omero_cli_render_release: 0.8.1
     omero_metadata_release: 0.13.0
-    omero_cli_zarr_release: 0.5.5
 
     omero_server_config_set:
       omero.client.icetransports: ssl,wss,tcp
