@@ -1,0 +1,5 @@
+# iviewer
+config append -- omero.web.apps '"omero_iviewer"'
+config append -- omero.web.open_with '["omero_iviewer", "omero_iviewer_index", {"supported_objects":["images", "dataset", "well"], "script_url": "omero_iviewer/openwith.js", "label": "OMERO.iviewer"}]'
+# set iviewer as a default viewer
+config set -- omero.web.viewer.view {{ omeroweb_default_viewer_override | default('omero_iviewer.views.index') }}

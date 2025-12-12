@@ -58,12 +58,23 @@
         name: nginx
         state: reloaded
 
-
   post_tasks:
 
     - name: Allow nginx to connect to omero-web
       become: true
       ansible.builtin.command: setsebool -P httpd_can_network_connect on
+
+    - name: Config for OMERO.web plugins
+      become: true
+      ansible.builtin.template:
+        src: templates/omero-web-config-for-webapps.j2
+        dest: >-
+          {{ omero_web_basedir }}/config/omero-web-config-for-webapps.omero
+        owner: "root"
+        group: "root"
+        mode: "u=rw,go=r"
+      notify:
+        - restart omero-web
   
 
   vars:
@@ -78,7 +89,7 @@
     nginx_version: 1.28.0
     postgresql_version: "18"
     java_versions: ["11"]
-    java_temurin: true
+    #java_temurin: true
 
     # OMERO versions
     omero_server_release: 5.6.16

@@ -12,3 +12,8 @@
 
 - src: ome.omero_user
 
+- src: ome.python3_virtualenv
+
+- src: ome.ice
+
+- src: ome.selinux_utils
